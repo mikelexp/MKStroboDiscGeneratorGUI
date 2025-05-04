@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtSvgWidgets import QSvgWidget
-from PyQt6.QtGui import QResizeEvent, QFont, QClipboard, QGuiApplication
+from PyQt6.QtGui import QResizeEvent, QFont, QGuiApplication
 import svgwrite
 import tempfile
 import os
@@ -30,7 +30,6 @@ class StroboscopeGenerator(QMainWindow):
         super().__init__()
         self.setWindowTitle("Stroboscopic Disc Generator")
         self.setMinimumSize(800, 600)
-        self.clipboard = QGuiApplication.clipboard()
         self.svg_content=""
         self.temp_dir = tempfile.TemporaryDirectory()
         # Variables para almacenar los parámetros
@@ -203,7 +202,7 @@ class StroboscopeGenerator(QMainWindow):
         line_size_layout.addWidget(self.line_size_input)
         
         # Checkbox force single
-        self.force_single_check = QCheckBox("Single line")
+        self.force_single_check = QCheckBox("Single mode")
         self.force_single_check.stateChanged.connect(self.update_segments_info)
         self.force_single_check.stateChanged.connect(self.schedule_preview_update)
         line_size_layout.addWidget(self.force_single_check)
@@ -283,13 +282,13 @@ class StroboscopeGenerator(QMainWindow):
         # Buttons
         buttons_layout = QVBoxLayout()
         
-        # The "Generate Disc" button is now optional but is maintained
+        # Generate Disc button
         self.generate_button = QPushButton("Update Preview")
         self.apply_font_to_widget(self.generate_button, 1)        
         self.generate_button.setToolTip("The preview is updated automatically, but you can force an update with this button")
         buttons_layout.addWidget(self.generate_button)
         
-        # Export format (moved just above the save button)
+        # Export format
         export_format_layout = QHBoxLayout()
         export_format_label = QLabel("Export format:")
         self.format_group = QButtonGroup()
@@ -304,18 +303,13 @@ class StroboscopeGenerator(QMainWindow):
         export_format_layout.addWidget(self.pdf_radio)
         buttons_layout.addLayout(export_format_layout)        
         
-        self.save_button = QPushButton("Guardar")
+        self.export_button = QPushButton("Export")
         self.generate_button.clicked.connect(self.generate_disc)
-        self.apply_font_to_widget(self.save_button, 1)  # Botones ligeramente más grandes
-        self.save_button.clicked.connect(self.save_file)
+        self.apply_font_to_widget(self.export_button, 1)  # Botones ligeramente más grandes
+        self.export_button.clicked.connect(self.export_file)
 
-        self.copy_button = QPushButton("Copy SVG")
-        self.apply_font_to_widget(self.copy_button, 1)
-        self.copy_button.clicked.connect(self.copy_svg_to_clipboard)
-        self.copy_button.setEnabled(False)
-        buttons_layout.addWidget(self.copy_button)
-        self.save_button.setEnabled(False)        
-        buttons_layout.addWidget(self.save_button)
+        self.export_button.setEnabled(False)        
+        buttons_layout.addWidget(self.export_button)
         
         controls_layout.addLayout(buttons_layout)
         
@@ -414,13 +408,13 @@ class StroboscopeGenerator(QMainWindow):
         if num_lines_floor == num_lines_ceil or self.force_single_check.isChecked():
             output_text = [
                 f"Ideal: {round(num_lines_exact, 3)} lines)",
-                f"{num_lines} ({num_lines_rpm} rpm) lines",
+                f"Created: {num_lines} ({num_lines_rpm} rpm) lines",
             ]
         else:           
             output_text = [
                 f"Ideal: {round(num_lines_exact, 3)} lines",
-                f"Inside: {num_lines_ceil_rpm} rpm ({num_lines_ceil} lines)",
-                f"Outside: {num_lines_floor_rpm} rpm ({num_lines_floor} lines)",
+                f"Inner: {num_lines_ceil_rpm} rpm ({num_lines_ceil} lines)",
+                f"Outer: {num_lines_floor_rpm} rpm ({num_lines_floor} lines)",
             ]
         self.information_label.setText("\n".join(output_text))
         self.line_width_label.setText(f"Line width: {line_width:.2f} mm")
@@ -586,13 +580,12 @@ class StroboscopeGenerator(QMainWindow):
         dwg.save()
         self.svg_widget.load(self.temp_svg_file.name)
         self.adjust_svg_size()
-        self.save_button.setEnabled(True)
-        self.copy_button.setEnabled(True)
+        self.export_button.setEnabled(True)
     
-    def save_file(self):
+    def export_file(self):
         try:
             if not self.temp_svg_file:
-                QMessageBox.warning(self, "Error", "There is no generated disc to save.")
+                QMessageBox.warning(self, "Error", "There is no generated disc to export.")
                 return
             
             # Determine the file format according to the selection
@@ -604,7 +597,7 @@ class StroboscopeGenerator(QMainWindow):
                 default_ext = ".pdf"                
                 
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "Save Stroboscopic Disc", "", file_filter
+                self, "Export Stroboscopic Disc", "", file_filter
             )
             
             if not file_path:
@@ -617,7 +610,7 @@ class StroboscopeGenerator(QMainWindow):
             # Check if the file already exists
             if os.path.exists(file_path):
                 reply = QMessageBox.question(
-                    self, "Confirmación", f"'{file_path}' already exists. Do you want to overwrite it?",
+                    self, "Confirmation", f"'{file_path}' already exists. Do you want to overwrite it?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.No:
@@ -634,16 +627,6 @@ class StroboscopeGenerator(QMainWindow):
                 renderPDF.drawToFile(drawing, file_path)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error saving file: {e}")    
-
-    def copy_svg_to_clipboard(self):
-        """Copies the generated SVG code to the clipboard, adjusting for proper rendering."""
-        try:
-            with open(self.temp_svg_file.name, 'r') as file:
-                svg_content = file.read()
-            self.clipboard.setText(svg_content)
-            QMessageBox.information(self, "SVG Copied", "The SVG code has been copied to the clipboard.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error copying the SVG: {e}")
 
     def closeEvent(self, event):
         self.temp_dir.cleanup()
