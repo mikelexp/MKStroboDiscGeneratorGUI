@@ -20,7 +20,6 @@ from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF
 
 # Constants for sizes
-
 SVG_MARGIN = 10  # mm margin in the SVG
 PREVIEW_PANEL_MARGIN_WIDTH = 20  # mm margin in the preview panel, width
 PREVIEW_PANEL_MARGIN_HEIGHT = 40  # mm margin in the preview panel, height
@@ -59,6 +58,17 @@ class StroboscopeGenerator(QMainWindow):
             font.setPointSize(int(font_size * self.scale_factor))
             QApplication.setFont(font)
     
+    def is_dark_theme(self):
+        """Detect if the system is using a dark theme"""
+        # Get the application palette
+        palette = QGuiApplication.palette()
+        # Get the window background color
+        background_color = palette.color(palette.ColorRole.Window)
+        # Calculate brightness (0-255), where lower values are darker
+        brightness = (background_color.red() * 299 + background_color.green() * 587 + background_color.blue() * 114) / 1000
+        # If brightness is less than 128, consider it a dark theme
+        return brightness < 128
+    
     def apply_font_to_widget(self, widget, size_increase=0):
         """Apply a font with a custom size to a specific widget"""
         font = widget.font()
@@ -76,33 +86,13 @@ class StroboscopeGenerator(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
-        # Apply style to improve visibility of checkboxes
+        # Apply style based on the system theme
         central_widget.setStyleSheet("""
-            QCheckBox {
-                background-color: rgba(255, 255, 255, 0.1);
-                border: 1px solid #aaa;
-                border-radius: 4px;
-                padding: 2px;
-                margin: 2px;
-            }
             QPushButton {
                 border: 2px solid #0078d7;
                 border-radius: 10px;
                 padding: 5px;
                 background-color: rgba(0, 120, 215, 0.1);
-                
-            }
-            QCheckBox::indicator {
-                width: 16px;
-                height: 16px;
-                border: 1px solid #aaa;
-                background-color: white;
-            }
-            QCheckBox::indicator:unchecked {
-                background-color: white;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #0078d7;
             }
         """)
         
@@ -319,11 +309,12 @@ class StroboscopeGenerator(QMainWindow):
         # Preview panel
         self.preview_panel = QWidget()
         preview_layout = QVBoxLayout(self.preview_panel)
+        preview_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Container for the SVG that takes up all available width
         self.svg_widget = QSvgWidget()
         self.svg_widget.setMinimumSize(QSize(300, 300))
-        preview_layout.addWidget(self.svg_widget, 1)
+        preview_layout.addWidget(self.svg_widget, 1, Qt.AlignmentFlag.AlignCenter)
         
         # Add preview panel to main layout
         main_layout.addWidget(self.preview_panel, 2)
@@ -517,6 +508,7 @@ class StroboscopeGenerator(QMainWindow):
                     x2 = center[0] + (lines_inner_radius * math.sin(angle))
 
                 y2 = center[1] - (lines_inner_radius * math.cos(angle))
+                
                 
                 dwg.add(dwg.line((x1, y1), (x2, y2), stroke=svgwrite.rgb(0, 0, 0, "%"), stroke_width=line_width))
         else:
