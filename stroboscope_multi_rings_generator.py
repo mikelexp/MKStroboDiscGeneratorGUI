@@ -122,7 +122,7 @@ class RingSettings(QWidget):
         
         # Information layout
         info_layout = QVBoxLayout()
-        info_group = QGroupBox("Calculated Information")
+        info_group = QGroupBox()
         info_group_layout = QVBoxLayout()
         
         self.segments_label = QLabel("Number of segments: -")

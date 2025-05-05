@@ -7,3 +7,5 @@ venv/
 *.exe
 *.bin
 *.spec
+*.svg
+*.pdf
