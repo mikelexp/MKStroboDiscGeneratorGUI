@@ -4,3 +4,6 @@ dist/
 *.dist/
 *.onefile-build/
 venv/
+*.exe
+*.bin
+*.spec

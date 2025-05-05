@@ -1,3 +1,5 @@
+nuitka
+pyinstaller
 PyQt6
 svgwrite
 svglib
