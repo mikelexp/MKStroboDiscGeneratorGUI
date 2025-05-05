@@ -20,11 +20,10 @@ from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF
 
 # Constants for sizes
-SVG_MARGIN = 10  # mm margin in the SVG
 PREVIEW_PANEL_MARGIN_WIDTH = 20  # mm margin in the preview panel, width
-PREVIEW_PANEL_MARGIN_HEIGHT = 40  # mm margin in the preview panel, height
-MIN_RING_DEPTH = 5  # mm minimum depth for each ring
-DEFAULT_RING_DEPTH = 10  # mm default depth for each ring
+PREVIEW_PANEL_MARGIN_HEIGHT = 20  # mm margin in the preview panel, height
+MIN_RING_DEPTH = 1  # mm minimum depth for each ring
+DEFAULT_RING_DEPTH = 8  # mm default depth for each ring
 
 class RingSettings(QWidget):
     """Widget for configuring a single ring of lines"""
@@ -115,10 +114,28 @@ class RingSettings(QWidget):
         depth_layout.addWidget(self.depth_input)
         frame_layout.addLayout(depth_layout)
         
+        # Single mode checkbox
+        self.force_single_check = QCheckBox("Single mode")
+        self.force_single_check.setChecked(True)
+        self.force_single_check.stateChanged.connect(self.settings_changed)
+        frame_layout.addWidget(self.force_single_check)
+        
         # Information layout
         info_layout = QVBoxLayout()
+        info_group = QGroupBox("Calculated Information")
+        info_group_layout = QVBoxLayout()
+        
         self.segments_label = QLabel("Number of segments: -")
-        info_layout.addWidget(self.segments_label)
+        info_group_layout.addWidget(self.segments_label)
+        
+        self.line_width_label = QLabel("Line width: -")
+        info_group_layout.addWidget(self.line_width_label)
+        
+        self.information_label = QLabel("Information: -")
+        info_group_layout.addWidget(self.information_label)
+        
+        info_group.setLayout(info_group_layout)
+        info_layout.addWidget(info_group)
         frame_layout.addLayout(info_layout)
         
         main_layout.addWidget(frame)
@@ -148,16 +165,75 @@ class RingSettings(QWidget):
         """Gets the ring depth value"""
         return self.depth_input.value()
     
-    def update_segments_info(self):
-        """Updates information about the number of segments"""
+    def lines_to_rpm(self, num_lines, frequency):
+        """Calculates the RPM given the number of lines and the frequency"""
+        rpm = (120 * frequency) / num_lines
+        return round(rpm, 3)
+    
+    def calculate_segments_and_line_width(self, radius):
+        """Calculate the number of lines, width of lines and rpm"""
         rpm = self.get_rpm_value()
         hz = self.get_hz_value()
         
-        # Calculate number of lines
+        # Calculate exact number of lines
         num_lines_exact = (60 * hz) / rpm * 2
-        num_lines = round(num_lines_exact)
         
-        self.segments_label.setText(f"Number of segments: {num_lines} (Ideal: {round(num_lines_exact, 2)})")
+        # Calculate floor and ceiling number of lines
+        num_lines_floor = math.floor(num_lines_exact)
+        num_lines_floor_rpm = self.lines_to_rpm(num_lines_floor, hz)
+        num_lines_ceil = math.ceil(num_lines_exact)
+        num_lines_ceil_rpm = self.lines_to_rpm(num_lines_ceil, hz)
+        
+        num_lines_rpm = 0
+        
+        # Check if number of lines is an integer or if single mode is forced
+        if num_lines_floor == num_lines_ceil or self.force_single_check.isChecked():
+            if (num_lines_floor == num_lines_ceil):
+                num_lines = num_lines_floor
+            else:
+                num_lines = round(num_lines_exact)
+            num_lines_rpm = self.lines_to_rpm(num_lines, hz)
+        else:
+            num_lines = 0  # Will be used to draw 2 sets of lines
+        
+        # Calculate line width
+        segment_width = (2 * math.pi * radius) / max(num_lines, 1)
+        line_width = segment_width / 2
+        
+        return (num_lines_exact, num_lines, num_lines_rpm, line_width, 
+                num_lines_floor, num_lines_ceil, num_lines_floor_rpm, num_lines_ceil_rpm)
+    
+    def update_segments_info(self, radius=None):
+        """Updates information about the number of segments and line width"""
+        # Use a default radius if none provided
+        if radius is None:
+            radius = 100  # Default radius for calculations
+        
+        (num_lines_exact, num_lines, num_lines_rpm, line_width,
+         num_lines_floor, num_lines_ceil, num_lines_floor_rpm, num_lines_ceil_rpm) = self.calculate_segments_and_line_width(radius)
+        
+        # Update segments label
+        if num_lines_floor == num_lines_ceil or self.force_single_check.isChecked():
+            self.segments_label.setText(f"Number of segments: {num_lines}")
+        else:
+            self.segments_label.setText(f"Number of segments: {num_lines_floor}/{num_lines_ceil}")
+        
+        # Update line width label
+        self.line_width_label.setText(f"Line width: {line_width:.2f} mm")
+        
+        # Update information label
+        if num_lines_floor == num_lines_ceil or self.force_single_check.isChecked():
+            output_text = [
+                f"Ideal: {round(num_lines_exact, 3)} lines",
+                f"Created: {num_lines} ({num_lines_rpm} rpm) lines",
+            ]
+        else:
+            output_text = [
+                f"Ideal: {round(num_lines_exact, 3)} lines",
+                f"Inner: {num_lines_ceil_rpm} rpm ({num_lines_ceil} lines)",
+                f"Outer: {num_lines_floor_rpm} rpm ({num_lines_floor} lines)",
+            ]
+        self.information_label.setText("\n".join(output_text))
     
     def settings_changed(self):
         """Called when any setting is changed"""
@@ -175,7 +251,8 @@ class RingSettings(QWidget):
         return {
             'rpm': self.get_rpm_value(),
             'hz': self.get_hz_value(),
-            'depth': self.get_depth_value()
+            'depth': self.get_depth_value(),
+            'single_mode': self.force_single_check.isChecked()
         }
 
 class StroboscopeMultiRingsGenerator(QMainWindow):
@@ -263,58 +340,63 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         controls_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         # Disc Parameters Group
-        params_group = QGroupBox("Disc Parameters")
+        params_group = QGroupBox("Disc Parameters (in mm)")
         self.apply_font_to_widget(params_group, 1)  # Group title slightly larger
         params_layout = QVBoxLayout()
         
         # Diameter
         diameter_layout = QHBoxLayout()
-        diameter_label = QLabel("Diameter (mm):")
+        diameter_label = QLabel("Total diameter:")
         self.diameter_input = QSpinBox()
-        self.diameter_input.setRange(50, 300)
+        self.diameter_input.setRange(10, 320)
         self.diameter_input.setValue(200)
         self.diameter_input.valueChanged.connect(self.schedule_preview_update)
         diameter_layout.addWidget(diameter_label)
         diameter_layout.addWidget(self.diameter_input)
         params_layout.addLayout(diameter_layout)
         
-        # Central hole diameter
-        hole_diameter_layout = QHBoxLayout()
-        hole_diameter_label = QLabel("Central Hole (mm):")
-        self.hole_diameter_input = QDoubleSpinBox()
-        self.hole_diameter_input.setRange(1, 20)
-        self.hole_diameter_input.setValue(7)
-        self.hole_diameter_input.setDecimals(1)
-        self.hole_diameter_input.valueChanged.connect(self.schedule_preview_update)
-        hole_diameter_layout.addWidget(hole_diameter_label)
-        hole_diameter_layout.addWidget(self.hole_diameter_input)
-        params_layout.addLayout(hole_diameter_layout)
+        # Spindle diameter
+        spindle_diameter_layout = QHBoxLayout()
+        spindle_diameter_label = QLabel("Spindle diameter:")
+        self.spindle_diameter_input = QDoubleSpinBox()
+        self.spindle_diameter_input.setRange(0, 20)
+        self.spindle_diameter_input.setValue(7)
+        self.spindle_diameter_input.setDecimals(2)
+        self.spindle_diameter_input.setSingleStep(0.1)
+        self.spindle_diameter_input.valueChanged.connect(self.schedule_preview_update)
+        spindle_diameter_layout.addWidget(spindle_diameter_label)
+        spindle_diameter_layout.addWidget(self.spindle_diameter_input)
+        params_layout.addLayout(spindle_diameter_layout)
         
         # Optional outer circle
-        outer_circle_layout = QVBoxLayout()
-        self.outer_circle_check = QCheckBox("Show outer circle")
-        self.outer_circle_check.setChecked(True)  # Enabled by default
-        self.outer_circle_check.stateChanged.connect(self.schedule_preview_update)
-        outer_circle_layout.addWidget(self.outer_circle_check)
         
         # Outer circle width
+        outer_circle_layout = QVBoxLayout()
         outer_circle_width_layout = QHBoxLayout()
-        outer_circle_width_label = QLabel("Outer circle width (mm):")
+        outer_circle_width_label = QLabel("Outer circle width:")
         self.outer_circle_width_input = QDoubleSpinBox()
-        self.outer_circle_width_input.setRange(0.1, 5)
-        self.outer_circle_width_input.setValue(0.5)
+        self.outer_circle_width_input.setRange(0, 10)
+        self.outer_circle_width_input.setValue(1)
+        self.outer_circle_width_input.setSingleStep(0.1)
         self.outer_circle_width_input.setDecimals(2)
         self.outer_circle_width_input.valueChanged.connect(self.schedule_preview_update)
         outer_circle_width_layout.addWidget(outer_circle_width_label)
         outer_circle_width_layout.addWidget(self.outer_circle_width_input)
         outer_circle_layout.addLayout(outer_circle_width_layout)
         
-        # Connect the checkbox to enable/disable the circle width
-        self.outer_circle_check.stateChanged.connect(
-            lambda state: self.outer_circle_width_input.setEnabled(state == Qt.CheckState.Checked.value)
-        )
-        
         params_layout.addLayout(outer_circle_layout)
+        
+        # Ring separation
+        ring_separation_layout = QHBoxLayout()
+        ring_separation_label = QLabel("Ring separation:")
+        self.ring_separation_input = QDoubleSpinBox()
+        self.ring_separation_input.setRange(0, 10)
+        self.ring_separation_input.setValue(1)
+        self.ring_separation_input.setDecimals(2)
+        self.ring_separation_input.valueChanged.connect(self.schedule_preview_update)
+        ring_separation_layout.addWidget(ring_separation_label)
+        ring_separation_layout.addWidget(self.ring_separation_input)
+        params_layout.addLayout(ring_separation_layout)
 
         params_group.setLayout(params_layout)
         controls_layout.addWidget(params_group)
@@ -323,7 +405,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         rings_group = QGroupBox("Rings Configuration")
         self.apply_font_to_widget(rings_group, 1)
         rings_layout = QVBoxLayout()
-        rings_layout.setSpacing(15)  # Increase spacing between elements
+        rings_layout.setSpacing(5)  # Increase spacing between elements
 
         # Scroll area for rings
         scroll_area = QScrollArea()
@@ -336,8 +418,8 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         self.rings_container = QWidget()
         self.rings_layout = QVBoxLayout(self.rings_container)
         self.rings_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.rings_layout.setContentsMargins(10, 10, 10, 10)  # Add padding
-        self.rings_layout.setSpacing(15)  # Add spacing between rings
+        self.rings_layout.setContentsMargins(0, 0, 10, 0)  # Add padding
+        self.rings_layout.setSpacing(5)  # Add spacing between rings
 
         scroll_area.setWidget(self.rings_container)
         rings_layout.addWidget(scroll_area)
@@ -468,17 +550,55 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         # Update the preview
         self.schedule_preview_update()
     
-    def calculate_lines_for_ring(self, rpm, hz, radius, ring_depth):
+    def calculate_lines_for_ring(self, ring_widget, radius, ring_depth):
         """Calculate the number of lines and line width for a ring"""
+        settings = ring_widget.get_settings()
+        rpm = settings['rpm']
+        hz = settings['hz']
+        single_mode = settings['single_mode']
+        
+        # Update the ring widget's calculated information
+        ring_widget.update_segments_info(radius)
+        
         # Calculate the exact number of lines
         num_lines_exact = (60 * hz) / rpm * 2
-        num_lines = round(num_lines_exact)
         
-        # Calculate the line width
-        circumference = 2 * math.pi * radius
-        line_width = circumference / (num_lines * 2)  # Half the segment width
+        # Calculate floor and ceiling number of lines
+        num_lines_floor = math.floor(num_lines_exact)
+        num_lines_ceil = math.ceil(num_lines_exact)
         
-        return num_lines, line_width
+        # Determine if we're using single or double mode
+        if num_lines_floor == num_lines_ceil or single_mode:
+            if num_lines_floor == num_lines_ceil:
+                num_lines = num_lines_floor
+            else:
+                num_lines = round(num_lines_exact)
+            
+            # Calculate line width
+            circumference = 2 * math.pi * radius
+            line_width = circumference / (num_lines * 2)  # Half the segment width
+            
+            return {
+                'mode': 'single',
+                'num_lines': num_lines,
+                'line_width': line_width
+            }
+        else:
+            # Double mode
+            # Calculate line widths for both sets
+            outer_circumference = 2 * math.pi * radius
+            inner_circumference = 2 * math.pi * (radius - ring_depth)
+            
+            outer_line_width = outer_circumference / (num_lines_floor * 2)
+            inner_line_width = inner_circumference / (num_lines_ceil * 2)
+            
+            return {
+                'mode': 'double',
+                'outer_num_lines': num_lines_floor,
+                'outer_line_width': outer_line_width,
+                'inner_num_lines': num_lines_ceil,
+                'inner_line_width': inner_line_width
+            }
     
     def generate_disc(self):
         """Generates the multi-ring stroboscopic disc SVG."""
@@ -489,15 +609,19 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         
         # --- 1. Retrieve Input Parameters ---
         diameter = self.diameter_input.value()
-        hole_diameter = self.hole_diameter_input.value()
-        outer_circle_enabled = self.outer_circle_check.isChecked()
+        spindle_diameter = self.spindle_diameter_input.value()
         outer_circle_width = self.outer_circle_width_input.value()
+        
+        ring_separation = self.ring_separation_input.value()
         
         # --- 2. Setup SVG Drawing ---
         self.temp_svg_file = tempfile.NamedTemporaryFile(suffix=".svg", delete=False)
         self.temp_svg_file.close()
         
-        svg_size = diameter + SVG_MARGIN  # Add a margin around the disc
+        # Add margin to ensure the outer circle is fully visible
+        svg_margin = 20  # mm margin around the disc
+        svg_size = diameter + svg_margin
+        
         dwg = svgwrite.Drawing(
             self.temp_svg_file.name,
             size=(f"{svg_size}mm", f"{svg_size}mm"),
@@ -506,56 +630,118 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         )
         center = (svg_size / 2, svg_size / 2)
         
-        # --- 3. Draw Outer Circle (if enabled) ---
-        radius = diameter / 2  # Radius of the disc
-        if outer_circle_enabled:
-            dwg.add(dwg.circle(center=center, r=radius, fill='none', stroke='black', stroke_width=outer_circle_width))
+        # --- 3. Draw Outer Circle ---
+        # Use the actual disc radius, not the SVG radius
+        disc_radius = diameter / 2
+        
+        # Draw the outer circle with the specified width
+        if outer_circle_width > 0:
+            dwg.add(dwg.circle(
+                center=center, 
+                r=disc_radius, 
+                fill='none', 
+                stroke='black', 
+                stroke_width=outer_circle_width
+            ))
+            
+            # Adjust the starting radius for the first ring to be inside the outer circle
+            current_radius = disc_radius - outer_circle_width
+        else:
+            current_radius = disc_radius
         
         # --- 4. Draw Rings ---
-        current_radius = radius
+        current_radius = disc_radius
         
         # Get settings for all rings
-        ring_settings = [widget.get_settings() for widget in self.ring_widgets]
+        ring_widgets = self.ring_widgets.copy()
         
         # Draw each ring from outside to inside
-        for i, settings in enumerate(ring_settings):
-            rpm = settings['rpm']
-            hz = settings['hz']
+        for i, ring_widget in enumerate(ring_widgets):
+            settings = ring_widget.get_settings()
             ring_depth = settings['depth']
             
             # Calculate inner radius for this ring
             inner_radius = current_radius - ring_depth
             
-            # Ensure inner radius is not smaller than the hole radius
-            if inner_radius < hole_diameter / 2:
-                inner_radius = hole_diameter / 2
+            # Ensure inner radius is not smaller than the spindle radius
+            if inner_radius < spindle_diameter / 2:
+                inner_radius = spindle_diameter / 2
                 ring_depth = current_radius - inner_radius
             
-            # Calculate number of lines and line width
-            num_lines, line_width = self.calculate_lines_for_ring(rpm, hz, current_radius, ring_depth)
+            # Calculate lines for this ring
+            lines_info = self.calculate_lines_for_ring(ring_widget, current_radius, ring_depth)
             
-            # Draw the lines for this ring
-            angle_increment = 360 / num_lines  # Degrees between each line
-            
-            for j in range(num_lines):
-                angle = math.radians(j * angle_increment)
-                # Outer endpoint of the line (x1, y1)
-                x1 = center[0] + current_radius * math.sin(angle)
-                y1 = center[1] - (current_radius * math.cos(angle))
+            if lines_info['mode'] == 'single':
+                # Draw single set of lines
+                num_lines = lines_info['num_lines']
+                line_width = lines_info['line_width']
                 
-                # Inner endpoint of the line (x2, y2)
-                x2 = center[0] + inner_radius * math.sin(angle)
-                y2 = center[1] - (inner_radius * math.cos(angle))
+                angle_increment = 360 / num_lines  # Degrees between each line
                 
-                dwg.add(dwg.line((x1, y1), (x2, y2), stroke=svgwrite.rgb(0, 0, 0, "%"), stroke_width=line_width))
+                for j in range(num_lines):
+                    angle = math.radians(j * angle_increment)
+                    # Outer endpoint of the line (x1, y1)
+                    x1 = center[0] + current_radius * math.sin(angle)
+                    y1 = center[1] - (current_radius * math.cos(angle))
+                    
+                    # Inner endpoint of the line (x2, y2)
+                    x2 = center[0] + inner_radius * math.sin(angle)
+                    y2 = center[1] - (inner_radius * math.cos(angle))
+                    
+                    dwg.add(dwg.line((x1, y1), (x2, y2), stroke=svgwrite.rgb(0, 0, 0, "%"), stroke_width=line_width))
+            else:
+                # Draw double set of lines
+                # Outer set
+                outer_num_lines = lines_info['outer_num_lines']
+                outer_line_width = lines_info['outer_line_width']
+                
+                angle_increment_outer = 360 / outer_num_lines
+                
+                for j in range(outer_num_lines):
+                    angle = math.radians(j * angle_increment_outer)
+                    # Outer endpoint of the line (x1, y1)
+                    x1 = center[0] + current_radius * math.sin(angle)
+                    y1 = center[1] - (current_radius * math.cos(angle))
+                    
+                    # Inner endpoint of the line (x2, y2)
+                    mid_radius = current_radius - ring_depth / 2
+                    x2 = center[0] + mid_radius * math.sin(angle)
+                    y2 = center[1] - (mid_radius * math.cos(angle))
+                    
+                    dwg.add(dwg.line((x1, y1), (x2, y2), stroke=svgwrite.rgb(0, 0, 0, "%"), stroke_width=outer_line_width))
+                
+                # Inner set
+                inner_num_lines = lines_info['inner_num_lines']
+                inner_line_width = lines_info['inner_line_width']
+                
+                angle_increment_inner = 360 / inner_num_lines
+                
+                for j in range(inner_num_lines):
+                    angle = math.radians(j * angle_increment_inner)
+                    # Outer endpoint of the line (x1, y1)
+                    mid_radius = current_radius - ring_depth / 2
+                    x1 = center[0] + mid_radius * math.sin(angle)
+                    y1 = center[1] - (mid_radius * math.cos(angle))
+                    
+                    # Inner endpoint of the line (x2, y2)
+                    x2 = center[0] + inner_radius * math.sin(angle)
+                    y2 = center[1] - (inner_radius * math.cos(angle))
+                    
+                    dwg.add(dwg.line((x1, y1), (x2, y2), stroke=svgwrite.rgb(0, 0, 0, "%"), stroke_width=inner_line_width))
             
-            # Update current radius for the next ring
-            current_radius = inner_radius
+            # Update current radius for the next ring, applying separation
+            current_radius = inner_radius - ring_separation
         
-        # --- 5. Draw Center Hole ---
-        dwg.add(dwg.circle(center=center, r=hole_diameter/2, fill='black', stroke='black', stroke_width=0.2))
+        # --- 6. Draw Spindle Hole ---
+        dwg.add(dwg.circle(
+            center=center, 
+            r=spindle_diameter/2, 
+            fill='black', 
+            stroke='black', 
+            stroke_width=0.2
+        ))
         
-        # --- 6. Save and Display ---
+        # --- 7. Save and Display ---
         dwg.save()
         self.svg_widget.load(self.temp_svg_file.name)
         self.adjust_svg_size()
