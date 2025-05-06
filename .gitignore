@@ -9,3 +9,4 @@ venv/
 *.spec
 *.svg
 *.pdf
+*.zip
