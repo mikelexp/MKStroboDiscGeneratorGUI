@@ -607,34 +607,29 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             QMessageBox.warning(self, "Warning", "Please add at least one ring.")
             return
         
-        # --- 1. Retrieve Input Parameters ---
+        # Input parameters
         diameter = self.diameter_input.value()
         spindle_diameter = self.spindle_diameter_input.value()
         outer_circle_width = self.outer_circle_width_input.value()
         
         ring_separation = self.ring_separation_input.value()
         
-        # --- 2. Setup SVG Drawing ---
+        # SVG temp file path
         self.temp_svg_file = tempfile.NamedTemporaryFile(suffix=".svg", delete=False)
         self.temp_svg_file.close()
         
-        # Add margin to ensure the outer circle is fully visible
-        svg_margin = 20  # mm margin around the disc
-        svg_size = diameter + svg_margin
-        
         dwg = svgwrite.Drawing(
             self.temp_svg_file.name,
-            size=(f"{svg_size}mm", f"{svg_size}mm"),
+            size=(f"{diameter}mm", f"{diameter}mm"),
             profile="tiny",
-            viewBox=f"0 0 {svg_size} {svg_size}",
+            viewBox=f"0 0 {diameter} {diameter}",
         )
-        center = (svg_size / 2, svg_size / 2)
         
-        # --- 3. Draw Outer Circle ---
-        # Use the actual disc radius, not the SVG radius
-        disc_radius = diameter / 2
+        center = (diameter / 2, diameter / 2)
         
-        # Draw the outer circle with the specified width
+        # Draw Outer Circle
+        disc_radius = diameter / 2 - (outer_circle_width / 2 if outer_circle_width > 0 else 0)
+        
         if outer_circle_width > 0:
             dwg.add(dwg.circle(
                 center=center, 
@@ -644,13 +639,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                 stroke_width=outer_circle_width
             ))
             
-            # Adjust the starting radius for the first ring to be inside the outer circle
-            current_radius = disc_radius - outer_circle_width
-        else:
-            current_radius = disc_radius
-        
-        # --- 4. Draw Rings ---
-        current_radius = disc_radius
+        current_radius = disc_radius - (outer_circle_width / 2 if outer_circle_width > 0 else 0)
         
         # Get settings for all rings
         ring_widgets = self.ring_widgets.copy()
@@ -676,7 +665,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                 num_lines = lines_info['num_lines']
                 line_width = lines_info['line_width']
                 
-                angle_increment = 360 / num_lines  # Degrees between each line
+                angle_increment = 360 / num_lines # Degrees between each line
                 
                 for j in range(num_lines):
                     angle = math.radians(j * angle_increment)
@@ -732,7 +721,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             # Update current radius for the next ring, applying separation
             current_radius = inner_radius - ring_separation
         
-        # --- 6. Draw Spindle Hole ---
+        # Draw Spindle Hole
         dwg.add(dwg.circle(
             center=center, 
             r=spindle_diameter/2, 
@@ -741,7 +730,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             stroke_width=0.2
         ))
         
-        # --- 7. Save and Display ---
+        # Save and Display
         dwg.save()
         self.svg_widget.load(self.temp_svg_file.name)
         self.adjust_svg_size()
@@ -757,7 +746,8 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             if self.svg_radio.isChecked():
                 file_filter = "SVG Files (*.svg)"
                 default_ext = ".svg"
-            else:  # PDF selected
+            else:
+                # PDF selected
                 file_filter = "PDF Files (*.pdf)"
                 default_ext = ".pdf"
             
@@ -779,7 +769,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.No:
-                    return  # Do not overwrite
+                    return # Do not overwrite
             
             if self.svg_radio.isChecked():
                 # Save as SVG (copy the temporary file)
