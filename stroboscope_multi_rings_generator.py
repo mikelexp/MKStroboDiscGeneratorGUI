@@ -18,6 +18,8 @@ import os
 # For PDF export
 from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF
+from reportlab.lib.pagesizes import A4, LETTER, LEGAL, A3
+from reportlab.lib.units import mm
 
 # Constants for sizes
 PREVIEW_PANEL_MARGIN_WIDTH = 20  # mm margin in the preview panel, width
@@ -456,6 +458,21 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         export_format_layout.addWidget(self.pdf_radio)
         buttons_layout.addLayout(export_format_layout)
         
+        # Paper format selection (for PDF export)
+        self.paper_format_layout = QHBoxLayout()
+        paper_format_label = QLabel("Paper format:")
+        self.paper_format_combo = QComboBox()
+        self.paper_format_combo.addItems(["A4", "Letter", "Legal", "A3"])
+        self.paper_format_combo.setCurrentIndex(0)  # A4 by default
+        self.paper_format_combo.setEnabled(False)  # Disabled by default (enabled only when PDF is selected)
+        
+        self.paper_format_layout.addWidget(paper_format_label)
+        self.paper_format_layout.addWidget(self.paper_format_combo)
+        buttons_layout.addLayout(self.paper_format_layout)
+        
+        # Connect radio buttons to enable/disable paper format selection
+        self.pdf_radio.toggled.connect(lambda checked: self.paper_format_combo.setEnabled(checked))
+        
         self.export_button = QPushButton("Export")
         self.apply_font_to_widget(self.export_button, 1)
         self.export_button.clicked.connect(self.export_file)
@@ -739,7 +756,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             if not self.temp_svg_file:
                 QMessageBox.warning(self, "Error", "There is no generated disc to export.")
                 return
-            
+        
             # Determine the file format according to the selection
             if self.svg_radio.isChecked():
                 file_filter = "SVG Files (*.svg)"
@@ -748,18 +765,18 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                 # PDF selected
                 file_filter = "PDF Files (*.pdf)"
                 default_ext = ".pdf"
-            
+        
             file_path, _ = QFileDialog.getSaveFileName(
                 self, "Export Multi-Ring Stroboscopic Disc", "", file_filter
             )
-            
+        
             if not file_path:
                 return
-            
+        
             # If the user did not add the extension, add it
             if not file_path.endswith(default_ext):
                 file_path += default_ext
-            
+        
             # Check if the file already exists
             if os.path.exists(file_path):
                 reply = QMessageBox.question(
@@ -768,7 +785,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                 )
                 if reply == QMessageBox.StandardButton.No:
                     return # Do not overwrite
-            
+        
             if self.svg_radio.isChecked():
                 # Save as SVG (copy the temporary file)
                 with open(self.temp_svg_file.name, 'r') as src, open(file_path, 'w') as dst:
@@ -776,8 +793,58 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             else:
                 # Save as PDF (convert SVG to PDF)
                 drawing = svg2rlg(self.temp_svg_file.name)
-                renderPDF.drawToFile(drawing, file_path)
             
+                # Get the disc diameter in points (1 mm = 2.83465 points)
+                disc_diameter_mm = self.diameter_input.value()
+                disc_diameter_pt = disc_diameter_mm * 2.83465
+            
+                # Set paper size based on selection
+                paper_format = self.paper_format_combo.currentText()
+                if paper_format == "A4":
+                    pagesize = A4
+                elif paper_format == "Letter":
+                    pagesize = LETTER
+                elif paper_format == "Legal":
+                    pagesize = LEGAL
+                elif paper_format == "A3":
+                    pagesize = A3
+                else:
+                    pagesize = A4  # Default to A4
+            
+                # Get page dimensions in points
+                page_width, page_height = pagesize
+            
+                # Calculate margins in points (20mm)
+                margin_pt = 20 * 2.83465
+            
+                # Calculate the available space for the disc
+                max_width = page_width - 2 * margin_pt
+                max_height = page_height - 2 * margin_pt
+            
+                # Calculate the scale factor to fit the disc within the available space
+                scale_factor = min(max_width / disc_diameter_pt, max_height / disc_diameter_pt)
+            
+                # Calculate the position to center the disc on the page
+                x_offset = (page_width - disc_diameter_pt * scale_factor) / 2
+                y_offset = (page_height - disc_diameter_pt * scale_factor) / 2
+            
+                # Create a new drawing with the correct page size
+                from reportlab.graphics.shapes import Drawing, Group
+            
+                # Create a new drawing with the page size
+                new_drawing = Drawing(page_width, page_height)
+            
+                # Scale and center the original drawing
+                group = Group(drawing)
+                group.scale(scale_factor, scale_factor)
+                group.translate(x_offset / scale_factor, y_offset / scale_factor)
+            
+                # Add the scaled and centered group to the new drawing
+                new_drawing.add(group)
+            
+                # Render the new drawing to PDF
+                renderPDF.drawToFile(new_drawing, file_path, pagesize=pagesize)
+        
             QMessageBox.information(self, "Success", f"File saved successfully to {file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error saving file: {e}")
