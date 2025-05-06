@@ -5,12 +5,12 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QLabel, QPushButton, QScrollArea,
     QSpinBox, QDoubleSpinBox, QFileDialog, QGroupBox,
     QComboBox, QCheckBox, QRadioButton, QButtonGroup, QMessageBox,
-    QFrame, QSizePolicy
+    QFrame
 )
 
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtSvgWidgets import QSvgWidget
-from PyQt6.QtGui import QResizeEvent, QFont, QGuiApplication, QIcon
+from PyQt6.QtGui import QResizeEvent, QGuiApplication
 import svgwrite
 import tempfile
 import os
@@ -22,11 +22,9 @@ from reportlab.graphics import renderPDF
 # Constants for sizes
 PREVIEW_PANEL_MARGIN_WIDTH = 20  # mm margin in the preview panel, width
 PREVIEW_PANEL_MARGIN_HEIGHT = 20  # mm margin in the preview panel, height
-MIN_RING_DEPTH = 1  # mm minimum depth for each ring
-DEFAULT_RING_DEPTH = 8  # mm default depth for each ring
 
 class RingSettings(QWidget):
-    """Widget for configuring a single ring of lines"""
+    # Widget for configuring a single ring of lines
     def __init__(self, parent=None, index=0, on_delete=None, on_change=None):
         super().__init__(parent)
         self.index = index
@@ -106,8 +104,8 @@ class RingSettings(QWidget):
         depth_layout = QVBoxLayout()
         depth_label = QLabel("Ring depth (mm):")
         self.depth_input = QDoubleSpinBox()
-        self.depth_input.setRange(MIN_RING_DEPTH, 30)
-        self.depth_input.setValue(DEFAULT_RING_DEPTH)
+        self.depth_input.setRange(1, 100)
+        self.depth_input.setValue(8)
         self.depth_input.setDecimals(1)
         self.depth_input.valueChanged.connect(self.settings_changed)
         depth_layout.addWidget(depth_label)
@@ -125,13 +123,13 @@ class RingSettings(QWidget):
         info_group = QGroupBox()
         info_group_layout = QVBoxLayout()
         
-        self.segments_label = QLabel("Number of segments: -")
+        self.segments_label = QLabel()
         info_group_layout.addWidget(self.segments_label)
         
-        self.line_width_label = QLabel("Line width: -")
+        self.line_width_label = QLabel()
         info_group_layout.addWidget(self.line_width_label)
         
-        self.information_label = QLabel("Information: -")
+        self.information_label = QLabel()
         info_group_layout.addWidget(self.information_label)
         
         info_group.setLayout(info_group_layout)
@@ -144,34 +142,34 @@ class RingSettings(QWidget):
         self.update_segments_info()
     
     def toggle_rpm_input(self, state):
-        """Enables or disables manual RPM input"""
+        # Enables or disables manual RPM input
         is_checked = state == Qt.CheckState.Checked.value
         self.rpm_input.setEnabled(is_checked)
         self.rpm_combo.setEnabled(not is_checked)
         self.update_segments_info()
     
     def get_rpm_value(self):
-        """Gets the RPM value according to the configuration"""
+        # Gets the RPM value according to the configuration
         if self.rpm_manual_check.isChecked():
             return self.rpm_input.value()
         else:
             return float(self.rpm_combo.currentText())
     
     def get_hz_value(self):
-        """Gets the Hz value"""
+        # Gets the Hz value
         return float(self.hz_combo.currentText())
     
     def get_depth_value(self):
-        """Gets the ring depth value"""
+        # Gets the ring depth value
         return self.depth_input.value()
     
     def lines_to_rpm(self, num_lines, frequency):
-        """Calculates the RPM given the number of lines and the frequency"""
+        # Calculates the RPM given the number of lines and the frequency
         rpm = (120 * frequency) / num_lines
         return round(rpm, 3)
     
     def calculate_segments_and_line_width(self, radius):
-        """Calculate the number of lines, width of lines and rpm"""
+        # Calculate the number of lines, width of lines and rpm
         rpm = self.get_rpm_value()
         hz = self.get_hz_value()
         
@@ -204,7 +202,7 @@ class RingSettings(QWidget):
                 num_lines_floor, num_lines_ceil, num_lines_floor_rpm, num_lines_ceil_rpm)
     
     def update_segments_info(self, radius=None):
-        """Updates information about the number of segments and line width"""
+        # Updates information about the number of segments and line width
         # Use a default radius if none provided
         if radius is None:
             radius = 100  # Default radius for calculations
@@ -236,18 +234,18 @@ class RingSettings(QWidget):
         self.information_label.setText("\n".join(output_text))
     
     def settings_changed(self):
-        """Called when any setting is changed"""
+        # Called when any setting is changed
         self.update_segments_info()
         if self.on_change:
             self.on_change()
     
     def request_delete(self):
-        """Request to delete this ring"""
+        # Request to delete this ring
         if self.on_delete:
             self.on_delete(self.index)
     
     def get_settings(self):
-        """Returns the settings for this ring"""
+        # Returns the settings for this ring
         return {
             'rpm': self.get_rpm_value(),
             'hz': self.get_hz_value(),
@@ -282,7 +280,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         self.add_ring()
     
     def apply_font_scaling(self):
-        """Apply a modest increase to the application's font"""
+        # Apply a modest increase to the application's font
         # Use a fixed and conservative scale factor
         self.scale_factor = 1.15  # 15% increase
         
@@ -294,7 +292,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             QApplication.setFont(font)
     
     def is_dark_theme(self):
-        """Detect if the system is using a dark theme"""
+        # Detect if the system is using a dark theme
         # Get the application palette
         palette = QGuiApplication.palette()
         # Get the window background color
@@ -305,7 +303,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         return brightness < 128
     
     def apply_font_to_widget(self, widget, size_increase=0):
-        """Apply a font with a custom size to a specific widget"""
+        # Apply a font with a custom size to a specific widget
         font = widget.font()
         current_size = font.pointSize()
         if current_size > 0 and size_increase > 0:
@@ -313,7 +311,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             widget.setFont(font)
     
     def schedule_preview_update(self):
-        """Schedule a preview update after a brief delay"""
+        # Schedule a preview update after a brief delay
         self.update_timer.start(300)  # 300ms delay to avoid excessive updates
     
     def setup_ui(self):
@@ -483,12 +481,12 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         main_layout.addWidget(self.preview_panel, 2)
     
     def resizeEvent(self, event: QResizeEvent) -> None:
-        """Adjust the size of the SVG when the window is resized"""
+        # Adjust the size of the SVG when the window is resized
         super().resizeEvent(event)
         self.adjust_svg_size()
     
     def adjust_svg_size(self):
-        """Adjust the size of the SVG widget to occupy the maximum available space"""
+        # Adjust the size of the SVG widget to occupy the maximum available space
         if hasattr(self, 'svg_widget') and hasattr(self, 'preview_panel'):
             # Get the available width in the preview panel
             available_width = self.preview_panel.width() - PREVIEW_PANEL_MARGIN_WIDTH
@@ -501,7 +499,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             self.svg_widget.setFixedSize(QSize(size, size))
     
     def add_ring(self):
-        """Add a new ring to the configuration"""
+        # Add a new ring to the configuration
         # Add a separator if there are already rings
         if self.ring_widgets:
             separator = QFrame()
@@ -523,7 +521,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         self.schedule_preview_update()
     
     def delete_ring(self, index):
-        """Delete a ring from the configuration"""
+        # Delete a ring from the configuration
         if index < len(self.ring_widgets):
             # Remove the widget from the layout and delete it
             widget = self.ring_widgets.pop(index)
@@ -551,7 +549,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         self.schedule_preview_update()
     
     def calculate_lines_for_ring(self, ring_widget, radius, ring_depth):
-        """Calculate the number of lines and line width for a ring"""
+        # Calculate the number of lines and line width for a ring
         settings = ring_widget.get_settings()
         rpm = settings['rpm']
         hz = settings['hz']
@@ -601,7 +599,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             }
     
     def generate_disc(self):
-        """Generates the multi-ring stroboscopic disc SVG."""
+        # Generates the multi-ring stroboscopic disc SVG.
         # Check if there are any rings
         if not self.ring_widgets:
             QMessageBox.warning(self, "Warning", "Please add at least one ring.")
