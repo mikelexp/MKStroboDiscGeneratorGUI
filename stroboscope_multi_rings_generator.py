@@ -793,11 +793,11 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             else:
                 # Save as PDF (convert SVG to PDF)
                 drawing = svg2rlg(self.temp_svg_file.name)
-            
+                
                 # Get the disc diameter in points (1 mm = 2.83465 points)
                 disc_diameter_mm = self.diameter_input.value()
                 disc_diameter_pt = disc_diameter_mm * 2.83465
-            
+                
                 # Set paper size based on selection
                 paper_format = self.paper_format_combo.currentText()
                 if paper_format == "A4":
@@ -810,38 +810,29 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                     pagesize = A3
                 else:
                     pagesize = A4  # Default to A4
-            
+                
                 # Get page dimensions in points
                 page_width, page_height = pagesize
-            
-                # Calculate margins in points (20mm)
-                margin_pt = 20 * 2.83465
-            
-                # Calculate the available space for the disc
-                max_width = page_width - 2 * margin_pt
-                max_height = page_height - 2 * margin_pt
-            
-                # Calculate the scale factor to fit the disc within the available space
-                scale_factor = min(max_width / disc_diameter_pt, max_height / disc_diameter_pt)
-            
+                
                 # Calculate the position to center the disc on the page
-                x_offset = (page_width - disc_diameter_pt * scale_factor) / 2
-                y_offset = (page_height - disc_diameter_pt * scale_factor) / 2
-            
+                # without scaling (maintaining the exact size in mm)
+                x_offset = (page_width - disc_diameter_pt) / 2
+                y_offset = (page_height - disc_diameter_pt) / 2
+                
                 # Create a new drawing with the correct page size
                 from reportlab.graphics.shapes import Drawing, Group
-            
+                
                 # Create a new drawing with the page size
                 new_drawing = Drawing(page_width, page_height)
-            
-                # Scale and center the original drawing
+                
+                # Center the original drawing without scaling
                 group = Group(drawing)
-                group.scale(scale_factor, scale_factor)
-                group.translate(x_offset / scale_factor, y_offset / scale_factor)
-            
-                # Add the scaled and centered group to the new drawing
+                # No scaling - maintain original size (scale factor = 1)
+                group.translate(x_offset, y_offset)
+                
+                # Add the centered group to the new drawing
                 new_drawing.add(group)
-            
+                
                 # Render the new drawing to PDF
                 renderPDF.drawToFile(new_drawing, file_path, pagesize=pagesize)
         
