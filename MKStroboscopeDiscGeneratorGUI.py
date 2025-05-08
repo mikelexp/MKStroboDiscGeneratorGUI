@@ -39,7 +39,7 @@ class RingSettings(QWidget):
     def setup_ui(self):
         # Main layout
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         
         # Create a frame with border
         frame = QFrame()
@@ -56,7 +56,7 @@ class RingSettings(QWidget):
         font.setBold(True)
         title_label.setFont(font)
         
-        delete_button = QPushButton("Delete")
+        delete_button = QPushButton(" X ")
         delete_button.setMaximumWidth(80)
         delete_button.clicked.connect(self.request_delete)
         
@@ -65,8 +65,8 @@ class RingSettings(QWidget):
         header_layout.addWidget(delete_button)
         frame_layout.addLayout(header_layout)
         
-        # RPM settings - now vertical
-        rpm_layout = QVBoxLayout()
+        # RPM settings - horizontal layout for label and combo
+        rpm_layout = QHBoxLayout()
         rpm_label = QLabel("RPM:")
         self.rpm_combo = QComboBox()
         self.rpm_combo.addItems(["16", "33.33", "45", "78"])
@@ -75,12 +75,13 @@ class RingSettings(QWidget):
         
         rpm_layout.addWidget(rpm_label)
         rpm_layout.addWidget(self.rpm_combo)
+        frame_layout.addLayout(rpm_layout)
         
-        # Manual RPM input
+        # Manual RPM input - horizontal layout for checkbox and input
+        rpm_manual_layout = QHBoxLayout()
         self.rpm_manual_check = QCheckBox("Enter RPM manually:")
         self.rpm_manual_check.stateChanged.connect(self.toggle_rpm_input)
         self.rpm_manual_check.stateChanged.connect(self.settings_changed)
-        rpm_layout.addWidget(self.rpm_manual_check)
         
         self.rpm_input = QDoubleSpinBox()
         self.rpm_input.setRange(1, 100)
@@ -88,28 +89,31 @@ class RingSettings(QWidget):
         self.rpm_input.setDecimals(2)
         self.rpm_input.setEnabled(False)  # Disabled by default
         self.rpm_input.valueChanged.connect(self.settings_changed)
-        rpm_layout.addWidget(self.rpm_input)
         
-        frame_layout.addLayout(rpm_layout)
+        rpm_manual_layout.addWidget(self.rpm_manual_check)
+        rpm_manual_layout.addWidget(self.rpm_input)
+        frame_layout.addLayout(rpm_manual_layout)
         
-        # Frequency (Hz)
-        hz_layout = QVBoxLayout()
+        # Frequency (Hz) - horizontal layout for label and combo
+        hz_layout = QHBoxLayout()
         hz_label = QLabel("Frequency (Hz):")
         self.hz_combo = QComboBox()
         self.hz_combo.addItems(["50", "60"])
         self.hz_combo.currentIndexChanged.connect(self.settings_changed)
+        
         hz_layout.addWidget(hz_label)
         hz_layout.addWidget(self.hz_combo)
         frame_layout.addLayout(hz_layout)
         
         # Ring depth
-        depth_layout = QVBoxLayout()
+        depth_layout = QHBoxLayout()
         depth_label = QLabel("Ring depth (mm):")
         self.depth_input = QDoubleSpinBox()
         self.depth_input.setRange(1, 100)
         self.depth_input.setValue(8)
         self.depth_input.setDecimals(1)
         self.depth_input.valueChanged.connect(self.settings_changed)
+        
         depth_layout.addWidget(depth_label)
         depth_layout.addWidget(self.depth_input)
         frame_layout.addLayout(depth_layout)
@@ -406,6 +410,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         self.apply_font_to_widget(rings_group, 1)
         rings_layout = QVBoxLayout()
         rings_layout.setSpacing(5)  # Increase spacing between elements
+        rings_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
 
         # Scroll area for rings
         scroll_area = QScrollArea()
@@ -425,7 +430,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         rings_layout.addWidget(scroll_area)
         
         # Add Ring button
-        self.add_ring_button = QPushButton("Add Another Ring")
+        self.add_ring_button = QPushButton("Add Ring")
         self.apply_font_to_widget(self.add_ring_button, 1)
         self.add_ring_button.clicked.connect(self.add_ring)
         rings_layout.addWidget(self.add_ring_button)
@@ -433,15 +438,17 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         rings_group.setLayout(rings_layout)
         controls_layout.addWidget(rings_group)
         
-        # Buttons
-        buttons_layout = QVBoxLayout()
+        # Export Options Group
+        export_group = QGroupBox("Export Options")
+        self.apply_font_to_widget(export_group, 1)  # Group title slightly larger
+        export_layout = QVBoxLayout()
         
         # Generate Disc button
         self.generate_button = QPushButton("Update Preview")
         self.apply_font_to_widget(self.generate_button, 1)
         self.generate_button.setToolTip("The preview is updated automatically, but you can force an update with this button")
         self.generate_button.clicked.connect(self.generate_disc)
-        buttons_layout.addWidget(self.generate_button)
+        export_layout.addWidget(self.generate_button)
         
         # Export format
         export_format_layout = QHBoxLayout()
@@ -456,7 +463,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         export_format_layout.addWidget(export_format_label)
         export_format_layout.addWidget(self.svg_radio)
         export_format_layout.addWidget(self.pdf_radio)
-        buttons_layout.addLayout(export_format_layout)
+        export_layout.addLayout(export_format_layout)
         
         # Paper format selection (for PDF export)
         self.paper_format_layout = QHBoxLayout()
@@ -468,7 +475,7 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         
         self.paper_format_layout.addWidget(paper_format_label)
         self.paper_format_layout.addWidget(self.paper_format_combo)
-        buttons_layout.addLayout(self.paper_format_layout)
+        export_layout.addLayout(self.paper_format_layout)
         
         # Connect radio buttons to enable/disable paper format selection
         self.pdf_radio.toggled.connect(lambda checked: self.paper_format_combo.setEnabled(checked))
@@ -477,9 +484,10 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
         self.apply_font_to_widget(self.export_button, 1)
         self.export_button.clicked.connect(self.export_file)
         self.export_button.setEnabled(False)
-        buttons_layout.addWidget(self.export_button)
+        export_layout.addWidget(self.export_button)
         
-        controls_layout.addLayout(buttons_layout)
+        export_group.setLayout(export_layout)
+        controls_layout.addWidget(export_group)
         
         # Add control panel to main layout
         main_layout.addWidget(controls_panel, 1)
