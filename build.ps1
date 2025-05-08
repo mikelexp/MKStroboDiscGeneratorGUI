@@ -19,7 +19,8 @@ python -m nuitka MKStroboscopeDiscGeneratorGUI.py `
     --include-module=svglib `
     --include-module=tempfile `
     --include-module=reportlab `
-    --include-package=reportlab
+    --include-package=reportlab `
+    --windows-disable-console
 
 $output_file = "dist\MKStroboscopeDiscGeneratorGUI.exe"
 Write-Output "The executable '$output_file' has been created."
