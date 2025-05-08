@@ -19,7 +19,7 @@ python -m nuitka MKStroboscopeDiscGeneratorGUI.py \
 --include-module=tempfile \
 --include-module=reportlab \
 --include-package=reportlab \
---windows-disable-console \
+--windows-console-mode=disable \
 --onefile
 
 output_file="dist/MKStroboscopeDiscGeneratorGUI.bin"
