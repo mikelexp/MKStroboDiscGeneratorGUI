@@ -827,7 +827,9 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
                 
                 # Center the original drawing without scaling
                 group = Group(drawing)
-                # No scaling - maintain original size (scale factor = 1)
+                # Scale the drawing to match the desired size in points
+                scale_factor = disc_diameter_pt / drawing.width
+                group.scale(scale_factor, scale_factor)
                 group.translate(x_offset, y_offset)
                 
                 # Add the centered group to the new drawing
