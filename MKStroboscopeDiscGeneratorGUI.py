@@ -525,13 +525,6 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
     
     def add_ring(self):
         # Add a new ring to the configuration
-        # Add a separator if there are already rings
-        if self.ring_widgets:
-            separator = QFrame()
-            separator.setFrameShape(QFrame.Shape.HLine)
-            separator.setFrameShadow(QFrame.Shadow.Sunken)
-            self.rings_layout.addWidget(separator)
-        
         index = len(self.ring_widgets)
         ring_widget = RingSettings(
             parent=self.rings_container,
@@ -553,16 +546,6 @@ class StroboscopeMultiRingsGenerator(QMainWindow):
             self.rings_layout.removeWidget(widget)
             widget.deleteLater()
             
-            # Remove separator if needed
-            if index > 0 and index < len(self.ring_widgets) + 1:
-                # Find the separator before this widget
-                separator_index = index * 2 - 1
-                if separator_index < self.rings_layout.count():
-                    separator = self.rings_layout.itemAt(separator_index).widget()
-                    if separator and isinstance(separator, QFrame):
-                        self.rings_layout.removeWidget(separator)
-                        separator.deleteLater()
-        
         # Update the indices of the remaining widgets
         for i, widget in enumerate(self.ring_widgets):
             widget.index = i
