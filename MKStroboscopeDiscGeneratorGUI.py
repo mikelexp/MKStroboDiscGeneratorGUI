@@ -54,6 +54,7 @@ class RingSettings(QWidget):
         title_label = QLabel(f"Ring {self.index + 1}")
         font = title_label.font()
         font.setBold(True)
+        font.setPointSizeF(font.pointSizeF() * 1.4)  # Agrandar el tamaño de la fuente
         title_label.setFont(font)
         
         delete_button = QPushButton(" X ")
