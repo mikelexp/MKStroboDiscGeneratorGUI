@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Strobo Disc Creator
+Exec=/usr/local/bin/strobodisccreator
+Type=Application
+Terminal=false
+Icon=/usr/share/icons/hicolor/48x48/apps/strobodisccreator.png
+Categories=Utility;
+Comment=A stroboscopid disc creator for turntables' speed calibration
