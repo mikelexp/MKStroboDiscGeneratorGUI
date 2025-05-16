@@ -1,0 +1,12 @@
+Source: strobodisccreator
+Section: utils
+Priority: optional
+Maintainer: Miguel Scaramozzino <mikele@gmail.com>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 4.5.0
+Homepage: https://github.com/mikelexp/MKStroboDiscGeneratorGUI
+
+Package: strobodisccreator
+Architecture: all
+Depends: ${misc:Depends}
+Description: A stroboscopic disc creator for turntables' speed calibration

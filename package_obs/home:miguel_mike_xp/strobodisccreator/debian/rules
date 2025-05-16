@@ -1,0 +1,8 @@
+#!/usr/bin/make -f
+%:
+    dh $@
+
+override_dh_auto_install:
+    install -D -m 755 strobodisccreator $(DESTDIR)/usr/bin/strobodisccreator
+    install -D -m 644 strobodisccreator.desktop $(DESTDIR)/usr/share/applications/strobodisccreator.desktop
+    install -D -m 644 strobodisccreator.png $(DESTDIR)/usr/share/icons/hicolor/128x128/apps/strobodisccreator.png

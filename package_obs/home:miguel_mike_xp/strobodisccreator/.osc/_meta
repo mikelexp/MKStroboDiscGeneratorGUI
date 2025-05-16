@@ -1,0 +1,5 @@
+<package name="strobodisccreator" project="home:miguel_mike_xp">
+  <title>Strobo Disc Creator</title>
+  <description>A stroboscopic disc creator for turntables' speed adjustment</description>
+</package>
+
